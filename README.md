@@ -1,6 +1,6 @@
 # Antigravity Honu
 
-给 macOS 上的 Google Antigravity 桌面版加上海景皮肤和 Dock 红色角标。浅色 **Honu Lagoon** 和深色 **Night Reef** 都带有动态海景和半透明会话面板。切到别的应用工作时，看一眼 Dock 就知道有几个会话需要回来处理。
+给 macOS 上的 Google Antigravity 桌面版加上海景皮肤、Dock 红色角标和文件快捷入口。浅色 **Honu Lagoon** 和深色 **Night Reef** 都带有动态海景和半透明会话面板，界面汉化由船板主题补丁提供。
 
 ![Honu Lagoon 浅色海龟泻湖和 Night Reef 深色珊瑚礁场景预览](docs/preview.png)
 
@@ -15,6 +15,14 @@ python3 install.py install
 ```
 
 打开 Antigravity 主窗口，等几秒让补丁重新加载。标题栏出现「海景主题」菜单后即可选择浅色、深色、跟随系统或关闭海景。首次安装默认深色，在界面里选择的模式会保存。Dock 角标独立于配色，关闭海景后也能使用。
+
+## 中文界面和文件快捷入口
+
+- 安装时启用船板补丁的简体中文模块。原有自定义词典 `user/i18n.override.json` 仍可用于覆盖词条。
+- 右键聊天中的本地文件链接，选择「在访达中显示」可在 Finder 里定位到文件，也可选择「复制文件路径」。
+- 在 Antigravity 自带的文件预览里选中文字，选择「添加到对话」会把原文和可用的来源位置放进当前会话草稿。选择「顺便问一下 /btw」可用同一段文字发起支线提问，补写问题后由你发送。
+
+快捷入口依赖 Antigravity 的文件链接和编辑器接口。DOCX、表格等第三方预览插件可以提供自己的选区入口。
 
 ## 角标怎样计数
 
@@ -51,7 +59,7 @@ python3 install.py install
 python3 install.py uninstall
 ```
 
-安装器只管理 `~/.gemini/antigravity/theme-patch/user/custom.js` 和 `custom.css` 里的 Honu、Dock 标记块。修改前的文件保存在 `~/.gemini/antigravity/theme-patch/backups/honu-*`，具体路径会打印在终端。
+安装器管理 `~/.gemini/antigravity/theme-patch/user/custom.js` 和 `custom.css` 里的主题、角标和快捷入口标记块。如果安装器开启了用户之前关闭的汉化，卸载会恢复该开关。修改前的文件保存在 `~/.gemini/antigravity/theme-patch/backups/honu-*`，具体路径会打印在终端。
 
 ## 验证
 

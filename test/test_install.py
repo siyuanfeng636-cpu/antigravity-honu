@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -33,6 +34,9 @@ class Installation(unittest.TestCase):
         self.assertIn(b"<svg", js)
         self.assertNotIn(b"__HONU_SCENES__", js)
         self.assertEqual(1, js.count(b"// antigravity-dock-badge-start"))
+        self.assertEqual(1, js.count(b"// codex-file-actions-start"))
+        self.assertEqual(1, js.count(b"// codex-selection-actions-start"))
+        self.assertFalse((self.user / "config.json").exists())
         installer.run("install")
         self.assertEqual(js, self.js.read_bytes())
         self.assertEqual(css, self.css.read_bytes())
@@ -40,6 +44,23 @@ class Installation(unittest.TestCase):
         installer.run("uninstall")
         self.assertEqual(original_js + b"// later edit\r\n", self.js.read_bytes())
         self.assertEqual(original_css, self.css.read_bytes())
+
+    def test_enable_and_restore_chinese(self):
+        config = self.user / "config.json"
+        overrides = self.user / "i18n.override.json"
+        original_overrides = b'{"Finder":"custom words"}\n'
+        overrides.write_bytes(original_overrides)
+        config.write_text('{"preset": "native", "modules": {"i18n": false, "metrics": false}}')
+        installer.run("install")
+        self.assertEqual({"i18n": True, "metrics": False}, json.loads(config.read_bytes())["modules"])
+        installer.run("install")
+        edited = json.loads(config.read_bytes())
+        edited["modules"]["metrics"] = True
+        config.write_text(json.dumps(edited))
+        installer.run("uninstall")
+        self.assertEqual({"i18n": False, "metrics": True}, json.loads(config.read_bytes())["modules"])
+        self.assertFalse((self.user / installer.I18N_STATE).exists())
+        self.assertEqual(original_overrides, overrides.read_bytes())
 
     def test_incomplete_block_is_preserved(self):
         self.js.write_bytes(b"// personal script\n")

@@ -1,4 +1,4 @@
-"""在船板补丁的用户目录中安装或卸载 Honu 海景和 Dock 角标。"""
+"""安装或卸载 Honu 海景、Dock 角标、文件快捷入口和中文界面配置。"""
 import argparse
 import fcntl
 import json
@@ -14,7 +14,10 @@ THEME = ROOT / "theme"
 USER = Path.home() / ".gemini/antigravity/theme-patch/user"
 JS_THEME = ("// honu-lagoon-start", "// honu-lagoon-end")
 JS_BADGE = ("// antigravity-dock-badge-start", "// antigravity-dock-badge-end")
+JS_FILE = ("// codex-file-actions-start", "// codex-file-actions-end")
+JS_SELECTION = ("// codex-selection-actions-start", "// codex-selection-actions-end")
 CSS_THEME = ("/* honu-lagoon-start */", "/* honu-lagoon-end */")
+I18N_STATE = ".honu-i18n-state.json"
 
 
 def update_block(text, markers, block):
@@ -58,6 +61,9 @@ def rendered_theme():
 
 
 def atomic_write(path, data):
+    if data is None:
+        path.unlink()
+        return
     with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as f:
         temp = Path(f.name)
     try:
@@ -70,14 +76,53 @@ def atomic_write(path, data):
             temp.unlink()
 
 
+def read_existing(path):
+    return path.read_bytes() if path.exists() else None
+
+
+def i18n_changes(install):
+    config_path = (USER / "config.json").resolve()
+    state_path = USER / I18N_STATE
+    original = read_existing(config_path)
+    state = read_existing(state_path)
+    # 船板补丁默认开启汉化。只记录安装器显式改变的设置。
+    if state is not None and json.loads(state) != {"i18n": False}:
+        raise ValueError(f"无法识别 Honu 的中文设置备份 {state_path}")
+    if not install and state is None:
+        return []
+    config = json.loads(original.decode("utf-8-sig")) if original is not None else {}
+    if not isinstance(config, dict) or not isinstance(config.get("modules", {}), dict):
+        raise ValueError(f"无法读取补丁模块配置 {config_path}")
+    modules = config.get("modules", {})
+    if install:
+        if modules.get("i18n") is not False:
+            return []
+        modules["i18n"] = True
+        new_state = b'{"i18n": false}\n'
+    else:
+        new_state = None
+        if modules.get("i18n") is not True:
+            return [(state_path, state, new_state)]
+        modules["i18n"] = False
+    data = (json.dumps(config, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    return [(config_path, original, data), (state_path, state, new_state)]
+
+
 def run(action):
     if not USER.is_dir():
         raise ValueError(f"未找到补丁用户目录 {USER}。请先按 README 安装船板补丁。")
     install = action == "install"
+    def script(name):
+        return (ROOT / name).read_text(encoding="utf-8") if install else None
+
     blocks = {
-        "custom.js": [(JS_THEME, rendered_theme() if install else None),
-                      (JS_BADGE, (ROOT / "dock-badge.js").read_text(encoding="utf-8") if install else None)],
-        "custom.css": [(CSS_THEME, (THEME / "theme.css").read_text(encoding="utf-8") if install else None)],
+        "custom.js": [
+            (JS_THEME, rendered_theme() if install else None),
+            (JS_BADGE, script("dock-badge.js")),
+            (JS_FILE, script("entrypoints/file-actions.js")),
+            (JS_SELECTION, script("entrypoints/selection-actions.js")),
+        ],
+        "custom.css": [(CSS_THEME, script("theme/theme.css"))],
     }
     lock = os.open(USER, os.O_RDONLY)
     try:
@@ -85,13 +130,15 @@ def run(action):
         changes = []
         for name, entries in blocks.items():
             path = (USER / name).resolve()
-            original = path.read_bytes() if path.exists() else None
+            original = read_existing(path)
             text = (original or b"").decode("utf-8")
             for markers, block in entries:
                 text = update_block(text, markers, block)
             data = text.encode("utf-8")
             if data != (original or b""):
                 changes.append((path, original, data))
+        changes.extend(i18n_changes(install))
+        changes = [(path, old, new) for path, old, new in changes if old != new]
         if not changes:
             print("已是目标状态。")
             return
@@ -104,14 +151,14 @@ def run(action):
                 (backup / path.name).write_bytes(original)
         try:
             for path, original, data in changes:
-                current = path.read_bytes() if path.exists() else None
+                current = read_existing(path)
                 if current != original:
                     raise ValueError(f"{path} 在安装期间被改动，请重新运行。")
                 atomic_write(path, data)
                 applied.append((path, original, data))
         except BaseException:
             for path, original, written in reversed(applied):
-                if path.exists() and path.read_bytes() == written:
+                if read_existing(path) == written:
                     if original is None:
                         path.unlink()
                     else:
